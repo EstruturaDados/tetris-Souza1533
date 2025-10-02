@@ -3,132 +3,171 @@
 #include <string.h>
 
 // Estrutura que representa uma peça do Tetris
-typedef struct{
+typedef struct {
     char name[2];  // Nome da peça (string de 1 caractere + '\0')
     int id;        // Identificador único da peça
-}Piece;
+} Piece;
 
 #define MAX 5  // Capacidade máxima da fila circular (quantidade de peças visíveis)
 
-// Estrutura que representa a fila circular de peças
-typedef struct{
-    Piece itens [MAX]; // Vetor que armazena as peças
-    int start;         // Índice do início da fila
-    int end;           // Índice da próxima posição de inserção
-    int total;         // Quantidade de elementos atuais na fila
-    int next_id;       // Próximo ID a ser atribuído a uma peça
-}Queue;
+// Estrutura que representa a fila circular de peças (próximas peças do jogo)
+typedef struct {
+    Piece itens[MAX];  // Vetor que armazena as peças da fila
+    int start;         // Índice do início da fila (primeira peça disponível)
+    int end;           // Índice da próxima posição de inserção no fim da fila
+    int total;         // Quantidade de peças atualmente na fila
+    int next_id;       // Próximo ID único a ser atribuído a uma nova peça
+} Queue;
 
-// Insere uma nova peça na fila circular
-void InsertIntoQueue(Queue *q, Piece new){
-    q->itens[q->end] = new;              // Insere na posição "end"
+// Estrutura que representa a pilha de peças reservadas
+typedef struct {
+    Piece itens_r[MAX]; // Vetor que armazena as peças reservadas
+    int top;            // Índice do topo da pilha (última peça reservada)
+} Pile;
+
+// Insere uma nova peça no fim da fila circular
+void InsertIntoQueue(Queue *q, Piece new) {
+    q->itens[q->end] = new;              // Insere peça na posição "end"
     q->end = (q->end + 1) % MAX;         // Avança o índice de forma circular
 
-    if(q->total < MAX){
-        q->total++;                      // Incrementa se ainda não chegou no limite
+    if (q->total < MAX) {
+        q->total++;                      // Incrementa a contagem se houver espaço
     } else {
-        q->start = (q->start + 1) % MAX; // Se a fila está cheia, descarta a peça mais antiga
+        q->start = (q->start + 1) % MAX; // Se cheia, descarta a peça mais antiga (início da fila)
     }
 }
 
-// Gera uma peça aleatória com base em um conjunto fixo de caracteres
-Piece PieceGenerator(int id){
-    Piece p;
-    char piece[8] = {'T', 'Z', 'U', 'I', 'O', 'P', 'L', 'R'}; // Conjunto de tipos possíveis
-    p.name[0] = piece[rand() % 8];  // Sorteia uma letra da lista
-    p.name[1] = '\0';               // Fecha a string
-    p.id = id;                      // Define ID único
-    return p;
+// Gera uma peça aleatória com um ID único
+Piece PieceGenerator(int id) {
+    Piece new;
+    char piece[8] = {'T', 'Z', 'U', 'I', 'O', 'P', 'L', 'R'}; // Tipos de peças possíveis
+    new.name[0] = piece[rand() % 8];  // Seleciona aleatoriamente uma letra
+    new.name[1] = '\0';               // Finaliza string
+    new.id = id;                      // Define ID da peça
+    return new;
 }
 
-// Inicializa a fila já com 5 peças aleatórias
-void StartQueue(Queue *q){
+// Inicializa a fila de peças e a pilha de reservas
+void Start(Queue *q, Pile *p) {
     q->start = 0;
     q->end = 0;
     q->total = 0;
-    q->next_id = 1;
+    q->next_id = 1; // Começa IDs a partir de 1
+    p->top = -1;    // Pilha inicialmente vazia
 
-    for(int i = 0; i < MAX; i++){
-        Piece new = PieceGenerator(q->next_id++); // Gera peça com ID sequencial
-        InsertIntoQueue(q, new);                  // Insere na fila
+    // Preenche a fila com MAX peças iniciais
+    for (int i = 0; i < MAX; i++) {
+        Piece new = PieceGenerator(q->next_id++);
+        InsertIntoQueue(q, new);
     }
 }
 
-// Mostra a fila de peças no estado atual
-void UpdateQueue(Queue *q){
+// Exibe o estado atual da fila e da pilha de reservas
+void UpdateQueue(Queue *q, Pile *p) {
     int idx;
     printf("\n---------->  Fila Atual  <----------\n\n   ");
-    for (int i = 0; i < q->total; i++){
-        idx = (q->start + i) % MAX; // Calcula índice circular
+    
+    // Mostra todas as peças da fila em ordem
+    for (int i = 0; i < q->total; i++) {
+        idx = (q->start + i) % MAX; // Índice circular da peça
         printf("[%s.%d] ", q->itens[idx].name, q->itens[idx].id);
+    }
+
+    // Mostra as peças reservadas (pilha)
+    printf("\n\n           ( Reservadas )\n\n   ");
+    for (int i = 0; i <= p->top; i++) {
+        printf("[%s,%d] ", p->itens_r[i].name, p->itens_r[i].id);
     }
     printf("\n");
 }
 
-// Mostra a fila de peças destacando a próxima a ser jogada
-void UpdateQueue2(Queue *q){
-    int idx;
-    printf("\n----------->  Fila Atual  <----------\n\n");
-    printf("\n                              v\n    "); // Seta visual
-    for (int i = 0; i < q->total; i++){
-        idx = (q->start + i) % MAX;
-        printf("[%s.%d] ", q->itens[idx].name, q->itens[idx].id);
+// Reserva a última peça da fila, enviando-a para a pilha de reservas
+void ReservePiece(Queue *q, Pile *p) {
+    if (p->top < MAX - 1) { // Verifica se há espaço na pilha
+
+        int lastIndex = (q->end - 1 + MAX) % MAX; // último índice válido da fila
+        p->itens_r[++p->top] = q->itens[lastIndex]; // move para topo da pilha
+
+        // Remove a peça da fila
+        q->end = lastIndex;
+        q->total--;
+
+
+        // Gera uma nova peça e insere no fim da fila
+        Piece new = PieceGenerator(q->next_id++);
+        InsertIntoQueue(q, new);
+
+    } else {
+        printf("\nA pilha de reservas esta cheia!\n");
     }
-    printf("\n");
 }
 
-// Menu principal do jogo
-void Menu(Queue *q){
-    Piece temp;        // Peça temporária gerada mas ainda não inserida
-    int created = 0;   // Flag para saber se já existe peça criada
+// Usa uma peça reservada, inserindo-a no fim da fila e removendo a primeira da fila
+void UseReservedPiece(Queue *q, Pile *p) {
+    q->itens[q->end] = p->itens_r[p->top]; // Insere peça reservada no fim da fila
+    p->top--; // Remove do topo da pilha
+
+    q->end = (q->end + 1) % MAX; // Avança posição de inserção
+    q->total++;
+
+    // Mantém a fila no tamanho máximo removendo a primeira peça
+    q->start = (q->start + 1) % MAX;
+    q->total--;
+}
+
+// Exibe menu principal do jogo
+void Menu(Queue *q, Pile *p) {
+    Piece temp;        // Peça temporária
     int menu_choice;   // Opção escolhida pelo jogador
 
-    do{
-        // Exibe opções do menu
-        printf("\n----------(  Menu TETRIS  )---------\n\n");
-        printf("1) Inserir nova peca no final da fila\n");
-        printf("2) Jogar (remover) a peca da frente\n");
-        printf("3) Visualizar estado atual da fila\n");
-        printf("\n0) Sair do Jogo.\n");
-        printf("------------------------------------\n\n-> ");
-
-        scanf("%d", &menu_choice);
-
-        switch (menu_choice){
-        case 1: { // Criar uma nova peça
-                temp = PieceGenerator(q->next_id++); // Gera e guarda peça temporária
-                created = 1;                         // Marca que já existe peça criada
-                printf("\n---------->  Peca Gerada  <---------\n");
-                printf("\n             >  [%s.%d]  <\n", temp.name, temp.id);
-                break;
-            }
-        case 2: // Inserir a peça gerada na fila
-            if (created == 0){
-                printf("--------------( ERRO! )-------------\n");
-                printf("\nERRO 007 james bonde");
-                printf("\nPeca nao gerada ainda, use a opcao 1 primeiro.\n");
-            }else{
-                printf("\n---------->  Jogando Peca Gerada  <---------\n");
-                InsertIntoQueue(q, temp); // Adiciona peça temporária na fila
-                UpdateQueue2(q);          // Mostra a fila após inserção
-            }
-        break;
-
-        case 3: // Visualizar estado atual da fila
-            UpdateQueue(q);
-        break;
+    do {
+        // Atualiza estado da fila e pilha
+        UpdateQueue(q, p);
         
-        default: // Tratamento para opção inválida
-            if(menu_choice != 0)
-                printf("\n\nX Opcao Invalida!\n");
-        break;
+        // Exibe opções
+        printf("\n----------(  Menu TETRIS  )---------\n\n");
+        printf("1) Jogar peca\n");
+        printf("2) Reservar peca\n");
+        printf("3) Usar peca reservada\n");
+        printf("\n0) Sair.\n\n-> ");
+        scanf("%d", &menu_choice);
+        printf("------------------------------------\n\n");
+
+        switch (menu_choice) {
+        case 1: // Jogar uma peça normal
+            printf("\nJogando peca...\n");
+            temp = PieceGenerator(q->next_id++); // Gera nova peça
+            InsertIntoQueue(q, temp);            // Adiciona no fim da fila
+            break;
+
+        case 2: // Reservar peça
+            ReservePiece(q, p);
+            break;
+
+        case 3: // Usar peça reservada
+            if (p->top >= 0) {
+                UseReservedPiece(q, p);
+            } else {
+                printf("\nNenhuma peca reservada disponivel.\n");
+            }
+            break;
+        
+        default: // Opção inválida
+            if (menu_choice != 0)
+                printf("\n\n Opcao invalida!\n");
+            break;
         }
-    }while(menu_choice != 0); // Loop até a opção "0 - Sair"
+    } while (menu_choice != 0); // Continua até escolher "0 - Sair"
 }
 
 // Função principal
-int main(){
-    Queue q;         // Declara fila de peças
-    StartQueue(&q);  // Inicializa a fila com 5 peças
-    Menu(&q);        // Inicia menu interativo
+int main() {
+    Queue q;
+    Pile p;
+
+    // Inicializa a fila e a pilha
+    Start(&q, &p);
+
+    // Executa o menu interativo
+    Menu(&q, &p);
 }
