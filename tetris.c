@@ -10,7 +10,7 @@ typedef struct {
 
 #define MAX 5  // Capacidade máxima da fila circular (quantidade de peças visíveis)
 
-// Estrutura que representa a fila circular de peças (próximas peças do jogo)
+// Estrutura que representa a fila circular de peças
 typedef struct {
     Piece itens[MAX];  // Vetor que armazena as peças da fila
     int start;         // Índice do início da fila (primeira peça disponível)
@@ -27,147 +27,184 @@ typedef struct {
 
 // Insere uma nova peça no fim da fila circular
 void InsertIntoQueue(Queue *q, Piece new) {
-    q->itens[q->end] = new;              // Insere peça na posição "end"
-    q->end = (q->end + 1) % MAX;         // Avança o índice de forma circular
+    q->itens[q->end] = new;                 // Insere a peça na posição 'end'
+    q->end = (q->end + 1) % MAX;            // Incrementa 'end' circularmente
 
     if (q->total < MAX) {
-        q->total++;                      // Incrementa a contagem se houver espaço
+        q->total++;                          // Aumenta total se não estiver cheia
     } else {
-        q->start = (q->start + 1) % MAX; // Se cheia, descarta a peça mais antiga (início da fila)
+        q->start = (q->start + 1) % MAX;    // Se estiver cheia, move 'start' (descarta a peça mais antiga)
     }
 }
 
 // Gera uma peça aleatória com um ID único
 Piece PieceGenerator(int id) {
     Piece new;
-    char piece[8] = {'T', 'Z', 'U', 'I', 'O', 'P', 'L', 'R'}; // Tipos de peças possíveis
-    new.name[0] = piece[rand() % 8];  // Seleciona aleatoriamente uma letra
-    new.name[1] = '\0';               // Finaliza string
-    new.id = id;                      // Define ID da peça
+    char piece[8] = {'T', 'Z', 'U', 'I', 'O', 'P', 'L', 'R'}; // Tipos de peças disponíveis
+    new.name[0] = piece[rand() % 8];  // Escolhe uma peça aleatória
+    new.name[1] = '\0';               // Finaliza a string
+    new.id = id;                       // Define o ID da peça
     return new;
 }
 
-// Inicializa a fila de peças e a pilha de reservas
+// Inicializa a fila e a pilha de reservas
 void Start(Queue *q, Pile *p) {
     q->start = 0;
     q->end = 0;
     q->total = 0;
-    q->next_id = 1; // Começa IDs a partir de 1
-    p->top = -1;    // Pilha inicialmente vazia
+    q->next_id = 1;  // Começa IDs a partir de 1
+    p->top = -1;     // Pilha inicialmente vazia
 
-    // Preenche a fila com MAX peças iniciais
+    // Preenche a fila com peças iniciais
     for (int i = 0; i < MAX; i++) {
         Piece new = PieceGenerator(q->next_id++);
         InsertIntoQueue(q, new);
     }
+
+    // Pilha inicia com 2 peças
+    for (int i = 0; i < 2; i++) {
+        Piece new = PieceGenerator(q->next_id++);
+        p->itens_r[++p->top] = new;
+    }
 }
 
-// Exibe o estado atual da fila e da pilha de reservas
+// Exibe o estado atual da fila e da pilha
 void UpdateQueue(Queue *q, Pile *p) {
-    int idx;
-    printf("\n---------->  Fila Atual  <----------\n\n   ");
-    
-    // Mostra todas as peças da fila em ordem
+    printf("\n========== ESTADO ATUAL ==========\n");
+
+    // Exibe fila
+    printf("\nFila de Pecas (Frente -> Fim):\n   ");
     for (int i = 0; i < q->total; i++) {
-        idx = (q->start + i) % MAX; // Índice circular da peça
-        printf("[%s.%d] ", q->itens[idx].name, q->itens[idx].id);
+        int idx = (q->start + i) % MAX;  // Calcula índice circular
+        printf("[%s %d] ", q->itens[idx].name, q->itens[idx].id);
     }
 
-    // Mostra as peças reservadas (pilha)
-    printf("\n\n           ( Reservadas )\n\n   ");
-    for (int i = 0; i <= p->top; i++) {
-        printf("[%s,%d] ", p->itens_r[i].name, p->itens_r[i].id);
+    // Exibe pilha
+    printf("\n\nPilha de Reserva (Topo -> Base):\n   ");
+    for (int i = p->top; i >= 0; i--) {   // Do topo para a base
+        printf("[%s %d] ", p->itens_r[i].name, p->itens_r[i].id);
     }
-    printf("\n");
+
+    printf("\n=================================\n");
 }
 
 // Reserva a última peça da fila, enviando-a para a pilha de reservas
 void ReservePiece(Queue *q, Pile *p) {
-    if (p->top < MAX - 1) { // Verifica se há espaço na pilha
-
-        int lastIndex = (q->end - 1 + MAX) % MAX; // último índice válido da fila
-        p->itens_r[++p->top] = q->itens[lastIndex]; // move para topo da pilha
-
-        // Remove a peça da fila
-        q->end = lastIndex;
-        q->total--;
-
-
-        // Gera uma nova peça e insere no fim da fila
-        Piece new = PieceGenerator(q->next_id++);
-        InsertIntoQueue(q, new);
-
-    } else {
+    if (p->top >= MAX - 1) {  // Verifica se a pilha está cheia
         printf("\nA pilha de reservas esta cheia!\n");
+        return;
+    }
+    if (q->total == 0) {      // Verifica se há peça na fila
+        printf("\nNao ha peca na fila para reservar!\n");
+        return;
+    }
+
+    int lastIndex = (q->end - 1 + MAX) % MAX; // Calcula índice da última peça
+    p->itens_r[++p->top] = q->itens[lastIndex]; // Move para a pilha
+
+    q->end = lastIndex;  // Remove da fila
+    q->total--;          // Atualiza total
+
+    Piece new = PieceGenerator(q->next_id++);  // Gera nova peça
+    InsertIntoQueue(q, new);                   // Adiciona ao fim da fila
+}
+
+// Usa uma peça reservada, inserindo-a no fim da fila e removendo a primeira
+void UseReservedPiece(Queue *q, Pile *p) {
+    if (p->top < 0) {  // Verifica se há peças reservadas
+        printf("\nNenhuma peca reservada disponivel.\n");
+        return;
+    }
+
+    q->itens[q->end] = p->itens_r[p->top--]; // Move topo da pilha para a fila
+    q->end = (q->end + 1) % MAX;             // Incrementa fim circularmente
+    if (q->total < MAX) q->total++;          // Atualiza total
+
+    q->start = (q->start + 1) % MAX;         // Remove a primeira peça da fila
+}
+
+// Troca a peça do topo da pilha com a da frente da fila
+void ExchangePiece(Queue *q, Pile *p) {
+    if (p->top < 0) {  // Pilha vazia
+        printf("\nNao há peca na pilha para trocar!\n");
+        return;
+    }
+    if (q->total == 0) { // Fila vazia
+        printf("\nNao ha peca na fila para trocar!\n");
+        return;
+    }
+
+    Piece temp = p->itens_r[p->top];  // Guarda peça da pilha
+    p->itens_r[p->top] = q->itens[q->start]; // Troca com peça da fila
+    q->itens[q->start] = temp;
+
+    printf("\nTroca realizada entre o topo da pilha e a frente da fila!\n");
+}
+
+// Troca as 3 primeiras peças da fila com as 3 do topo da pilha
+void Exchange3(Queue *q, Pile *p){
+    if (p->top >= 2){ // Verifica se há pelo menos 3 peças na pilha
+        for (int i = 0; i < 3; i++){
+            Piece temp = p->itens_r[p->top - i];      // Acessa do topo para baixo
+            p->itens_r[p->top - i] = q->itens[q->start + i]; // Troca com fila
+            q->itens[q->start + i] = temp;           // Finaliza troca
+        }
+    } else {
+        printf("\nE preciso ter pelomenos 3 pecas na pilha primeiro.\n"); // Mensagem de erro
     }
 }
 
-// Usa uma peça reservada, inserindo-a no fim da fila e removendo a primeira da fila
-void UseReservedPiece(Queue *q, Pile *p) {
-    q->itens[q->end] = p->itens_r[p->top]; // Insere peça reservada no fim da fila
-    p->top--; // Remove do topo da pilha
-
-    q->end = (q->end + 1) % MAX; // Avança posição de inserção
-    q->total++;
-
-    // Mantém a fila no tamanho máximo removendo a primeira peça
-    q->start = (q->start + 1) % MAX;
-    q->total--;
-}
-
-// Exibe menu principal do jogo
+// Menu principal do jogo
 void Menu(Queue *q, Pile *p) {
-    Piece temp;        // Peça temporária
-    int menu_choice;   // Opção escolhida pelo jogador
+    int menu_choice;
+    Piece temp;
 
     do {
-        // Atualiza estado da fila e pilha
-        UpdateQueue(q, p);
-        
-        // Exibe opções
-        printf("\n----------(  Menu TETRIS  )---------\n\n");
-        printf("1) Jogar peca\n");
-        printf("2) Reservar peca\n");
+        UpdateQueue(q, p); // Exibe estado atual
+
+        printf("\n---------- MENU TETRIS ----------\n");
+        printf("1) Jogar nova peca (gera e adiciona)\n");
+        printf("2) Reservar peca da fila\n");
         printf("3) Usar peca reservada\n");
-        printf("\n0) Sair.\n\n-> ");
+        printf("4) Trocar topo da pilha com frente da fila\n");
+        printf("5) Trocar 3 primeiros da fila por 3 primeiros da pilha\n");
+        printf("0) Sair\n");
+        printf("--------------------------------\n-> ");
         scanf("%d", &menu_choice);
-        printf("------------------------------------\n\n");
 
         switch (menu_choice) {
-        case 1: // Jogar uma peça normal
-            printf("\nJogando peca...\n");
-            temp = PieceGenerator(q->next_id++); // Gera nova peça
-            InsertIntoQueue(q, temp);            // Adiciona no fim da fila
-            break;
-
-        case 2: // Reservar peça
-            ReservePiece(q, p);
-            break;
-
-        case 3: // Usar peça reservada
-            if (p->top >= 0) {
+            case 1:
+                printf("\nJogando nova peca...\n");
+                temp = PieceGenerator(q->next_id++);
+                InsertIntoQueue(q, temp);
+                break;
+            case 2:
+                ReservePiece(q, p);
+                break;
+            case 3:
                 UseReservedPiece(q, p);
-            } else {
-                printf("\nNenhuma peca reservada disponivel.\n");
-            }
-            break;
-        
-        default: // Opção inválida
-            if (menu_choice != 0)
-                printf("\n\n Opcao invalida!\n");
-            break;
+                break;
+            case 4:
+                ExchangePiece(q, p);
+                break;
+            case 5:
+                Exchange3(q, p);
+                break;
+            case 0:
+                printf("\nSaindo...\n");
+                break;
+            default:
+                printf("\nOpcao invalida!\n");
+                break;
         }
-    } while (menu_choice != 0); // Continua até escolher "0 - Sair"
+    } while (menu_choice != 0);
 }
 
-// Função principal
 int main() {
     Queue q;
     Pile p;
 
-    // Inicializa a fila e a pilha
-    Start(&q, &p);
-
-    // Executa o menu interativo
-    Menu(&q, &p);
+    Start(&q, &p);  // Inicializa fila e pilha
+    Menu(&q, &p);   // Executa menu interativo
+    return 0;
 }
